@@ -1,0 +1,25 @@
+# Composer
+/vendor/
+composer.lock
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# Logs y cache
+/storage/
+*.log
+*.cache
+
+# Certificados
+/certs/*.pfx
+/src/cert_*.pem
+
+# OS
+.DS_Store
+Thumbs.db
+
+# PHPUnit
+/phpunit.xml
+/tests/_output/

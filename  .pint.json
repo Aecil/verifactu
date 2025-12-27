@@ -1,0 +1,24 @@
+{
+  "preset": "laravel",
+  "rules": {
+    "array_syntax": { "syntax": "short" },
+    "ordered_imports": {
+      "sort_algorithm": "alpha"
+    },
+    "no_unused_imports": true,
+    "single_quote": true,
+    "concat_space": { "spacing": "one" },
+    "phpdoc_align": true,
+    "phpdoc_order": true,
+    "phpdoc_separation": true,
+    "phpdoc_trim": true,
+    "phpdoc_trim_consecutive_blank_line_separation": true,
+    "class_attributes_separation": {
+      "elements": {
+        "method": "one",
+        "property": "one",
+        "const": "one"
+      }
+    }
+  }
+}
