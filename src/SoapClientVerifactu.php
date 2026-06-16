@@ -143,6 +143,11 @@ class SoapClientVerifactu
     {
         $linea = $result->RespuestaLinea ?? null;
 
+        // SOAP_SINGLE_ELEMENT_ARRAYS puede envolver un solo elemento en un array
+        if (is_array($linea)) {
+            $linea = $linea[0] ?? null;
+        }
+
         if ($linea && ! empty($linea->DescripcionErrorRegistro)) {
             $codigo = ! empty($linea->CodigoErrorRegistro) ? ' ['.$linea->CodigoErrorRegistro.']' : '';
 
