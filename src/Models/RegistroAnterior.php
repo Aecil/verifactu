@@ -66,6 +66,32 @@ class RegistroAnterior
     }
 
     /**
+     * Crea un RegistroAnterior desde un registro de la respuesta de consulta
+     * (ConsultaFactuSistemaFacturacion). La estructura difiere de la de envío.
+     *
+     * @param  object  $registro  Un elemento de RegistroRespuestaConsultaFactuSistemaFacturacion
+     */
+    public static function fromConsultaRegistro(object $registro): ?self
+    {
+        $idFactura = $registro->IDFactura ?? null;
+        $datos = $registro->DatosRegistroFacturacion ?? null;
+        $huella = $datos->Huella ?? null;
+
+        if (! $idFactura || ! $huella) {
+            return null;
+        }
+
+        $fecha = \DateTime::createFromFormat('d-m-Y', $idFactura->FechaExpedicionFactura ?? '');
+
+        return new self(
+            $idFactura->IDEmisorFactura ?? '',
+            $idFactura->NumSerieFactura ?? '',
+            $fecha ?: new \DateTime,
+            $huella
+        );
+    }
+
+    /**
      * Convierte el registro anterior a formato array
      */
     public function toArray(): array
