@@ -5,6 +5,7 @@ namespace Aecil\Verifactu;
 use const WSDL_CACHE_NONE;
 
 use Aecil\Verifactu\Enums\VerifactuRespuestas;
+use Aecil\Verifactu\Models\CancelarFactura;
 use Aecil\Verifactu\Models\IdFactura;
 use Aecil\Verifactu\Models\Invoice;
 use Illuminate\Support\HtmlString;
@@ -75,7 +76,7 @@ class SoapClientVerifactu
 
         try {
             $errors = $invoice->validate();
-            if (count($errors) > 0) {
+            if (\count($errors) > 0) {
                 throw new \InvalidArgumentException(implode("\n", $errors));
             }
 
@@ -84,28 +85,12 @@ class SoapClientVerifactu
                 [$invoice->toArray()]
             );
 
-            $isSuccess = false;
-            $message = 'Error al enviar la factura';
-
-            $estado = strtoupper($result->EstadoEnvio ?? '');
-
-            if ($estado === VerifactuRespuestas::CORRECTO) {
-                $isSuccess = true;
-                $message = 'Factura enviada correctamente';
-            } elseif (
-                $estado === VerifactuRespuestas::ACEPTADO_CON_ERRORES ||
-                $estado === VerifactuRespuestas::PARCIALMENTE_CORRECTO
-            ) {
-                $isSuccess = true;
-                $message = 'Factura enviada con errores';
-            } elseif (! empty($result->RespuestaLinea->DescripcionErrorRegistro)) {
-                $message .= ': '.$result->RespuestaLinea->DescripcionErrorRegistro;
-            }
-
+            return $this->parseResponse($result);
+        } catch (\SoapFault $fault) {
             return [
-                'success' => $isSuccess,
-                'message' => $message,
-                'data' => $result,
+                'success' => false,
+                'message' => $fault->getMessage(),
+                'data' => $fault,
             ];
         } catch (\Throwable $error) {
             return [
@@ -114,6 +99,86 @@ class SoapClientVerifactu
                 'data' => $error,
             ];
         }
+    }
+
+    /**
+     * Cancela (anula) una factura previamente enviada a Verifactu.
+     */
+    public function cancelInvoice(CancelarFactura $cancelacion): array
+    {
+        $this->client->__setLocation($this->endpoint);
+
+        try {
+            $errors = $cancelacion->validate();
+            if (\count($errors) > 0) {
+                throw new \InvalidArgumentException(implode("\n", $errors));
+            }
+
+            $result = $this->client->__soapCall(
+                'RegFactuSistemaFacturacion',
+                [$cancelacion->toArray()]
+            );
+
+            return $this->parseResponse($result);
+        } catch (\SoapFault $fault) {
+            return [
+                'success' => false,
+                'message' => $fault->getMessage(),
+                'data' => $fault,
+            ];
+        } catch (\Throwable $error) {
+            return [
+                'success' => false,
+                'message' => $error->getMessage() ?? 'Error desconocido',
+                'data' => $error,
+            ];
+        }
+    }
+
+    /**
+     * Extrae el mensaje de error desde la RespuestaLinea, recorriendo
+     * posibles ubicaciones del nodo en la respuesta SOAP.
+     */
+    private function extractErrorDescription(object $result): string
+    {
+        $linea = $result->RespuestaLinea ?? null;
+
+        if ($linea && ! empty($linea->DescripcionErrorRegistro)) {
+            $codigo = ! empty($linea->CodigoErrorRegistro) ? ' ['.$linea->CodigoErrorRegistro.']' : '';
+
+            return $linea->DescripcionErrorRegistro.$codigo;
+        }
+
+        return '';
+    }
+
+    /**
+     * Parsea la respuesta SOAP de Verifactu y devuelve un array normalizado.
+     */
+    private function parseResponse(object $result): array
+    {
+        $estadoRaw = strtoupper(str_replace(' ', '', $result->EstadoEnvio ?? ''));
+
+        $estado = VerifactuRespuestas::tryFrom($estadoRaw) ?? VerifactuRespuestas::INCORRECTO;
+
+        $message = match ($estado) {
+            VerifactuRespuestas::CORRECTO => 'Factura enviada correctamente',
+            VerifactuRespuestas::ACEPTADA_CON_ERRORES,
+            VerifactuRespuestas::PARCIALMENTE_CORRECTO => 'Factura enviada con errores',
+            VerifactuRespuestas::INCORRECTO => 'Error al enviar la factura',
+        };
+
+        $errorDesc = $this->extractErrorDescription($result);
+        if ($errorDesc !== '') {
+            $message .= ': '.$errorDesc;
+        }
+
+        return [
+            'success' => $estado->isAccepted(),
+            'message' => $message,
+            'estado' => $estado,
+            'data' => $result,
+        ];
     }
 
     public function getLastRequest(): ?string

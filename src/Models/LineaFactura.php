@@ -32,7 +32,7 @@ class LineaFactura
 
     public ?string $cuotaRecargoEquivalencia = null;
 
-    public function __construct($baseImponibleOimporteNoSujeto, $cuotaRepercutida, $tipoImpositivo = '21.00', $tipoImpuesto = TipoImpuesto::IVA, $claveRegimen = TipoRegimen::C01, $calificacionOperacion = TipoOperacion::Subject)
+    public function __construct(string $baseImponibleOimporteNoSujeto, string $cuotaRepercutida, string $tipoImpositivo = '21.00', string $tipoImpuesto = TipoImpuesto::IVA->value, string $claveRegimen = TipoRegimen::C01->value, string $calificacionOperacion = TipoOperacion::Subject->value)
     {
         $this->tipoImpuesto = $tipoImpuesto;
         $this->claveRegimen = $claveRegimen;
@@ -158,20 +158,8 @@ class LineaFactura
         return $data;
     }
 
-    /**
-     * Indica si la operación está exenta de IVA
-     *
-     * @param  TipoOperacion  $operacion
-     */
     private function lineaExentaIva(): bool
     {
-        return in_array($this->calificacionOperacion, [
-            TipoOperacion::ExemptByArticle20,
-            TipoOperacion::ExemptByArticle21,
-            TipoOperacion::ExemptByArticle22,
-            TipoOperacion::ExemptByArticles23And24,
-            TipoOperacion::ExemptByArticle25,
-            TipoOperacion::ExemptByOther,
-        ], true);
+        return TipoOperacion::tryFrom($this->calificacionOperacion)?->isExenta() ?? false;
     }
 }

@@ -3,15 +3,17 @@
 namespace Aecil\Verifactu\Enums;
 
 /**
- * Enumeración con los posibles estados de respuesta del sistema Verifactu
+ * Posibles estados de respuesta del sistema Verifactu (AEAT).
  */
-enum VerifactuRespuestas
+enum VerifactuRespuestas: string
 {
-    const CORRECTO = 'CORRECTO';
+    case CORRECTO = 'CORRECTO';
+    case ACEPTADA_CON_ERRORES = 'ACEPTADACONERRORES';
+    case PARCIALMENTE_CORRECTO = 'PARCIALMENTECORRECTO';
+    case INCORRECTO = 'INCORRECTO';
 
-    const ACEPTADO_CON_ERRORES = 'ACEPTADOCONERRORES';
-
-    const PARCIALMENTE_CORRECTO = 'PARCIALMENTECORRECTO';
-
-    const INCORRECTO = 'INCORRECTO';
+    public function isAccepted(): bool
+    {
+        return in_array($this, [self::CORRECTO, self::ACEPTADA_CON_ERRORES, self::PARCIALMENTE_CORRECTO], true);
+    }
 }

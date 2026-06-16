@@ -3,23 +3,26 @@
 namespace Aecil\Verifactu\Enums;
 
 /**
- * Enumeración con los diferentes tipos de factura según Verifactu
+ * Tipos de factura según Verifactu (AEAT).
  */
 enum TipoFactura: string
 {
-    const FACTURA = 'F1'; // Factura
+    case F1 = 'F1';          // Factura ordinaria
+    case F2 = 'F2';          // Simplificada
+    case F3 = 'F3';          // Sustitutiva
+    case R1 = 'R1';          // Rectificativa (Art 80.1, 80.2 y error fundado en derecho)
+    case R2 = 'R2';          // Rectificativa (Art. 80.3)
+    case R3 = 'R3';          // Rectificativa (Art. 80.4)
+    case R4 = 'R4';          // Rectificativa (Resto)
+    case R5 = 'R5';          // Rectificativa en facturas simplificadas
 
-    const SIMPLIFICADA = 'F2'; // Simplificada
+    /** Alias semánticos para mantener compatibilidad */
+    public const FACTURA = self::F1;
+    public const SIMPLIFICADA = self::F2;
+    public const SUSTITUTIVA = self::F3;
 
-    const SUSTITUTIVA = 'F3'; // Sustitutiva
-
-    const R1 = 'R1'; // Factura rectificativa (Art 80.1 y 80.2 y error fundado en derecho)
-
-    const R2 = 'R2'; // Factura rectificativa (Art. 80.3)
-
-    const R3 = 'R3'; // Factura rectificativa (Art. 80.4)
-
-    const R4 = 'R4'; // Factura rectificativa (Resto)
-
-    const R5 = 'R5'; // Factura rectificativa en facturas simplificadas
+    public function isRectificativa(): bool
+    {
+        return \in_array($this, [self::R1, self::R2, self::R3, self::R4, self::R5], true);
+    }
 }

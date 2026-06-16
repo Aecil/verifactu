@@ -6,8 +6,8 @@ return [
     'verifactu_cert_password' => env('VERIFACTU_CERT_PASSWORD'),
     'environment' => env('VERIFACTU_ENV', 'sandbox'),
     'main_endpoints' => [
-        'sandbox' => 'https://prewww1.aeat.es/wlpl/TIKE-CONT/WS',
-        'production' => 'https://www1.aeat.es/wlpl/TIKE-CONT/WS',
+        'sandbox' => 'https://prewww1.aeat.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
+        'production' => 'https://www1.agenciatributaria.gob.es/wlpl/TIKE-CONT/ws/SistemaFacturacion/VerifactuSOAP',
     ],
     'qr_endpoints' => [
         'sandbox' => 'https://prewww2.aeat.es',

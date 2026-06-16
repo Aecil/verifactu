@@ -3,24 +3,10 @@
 namespace Aecil\Verifactu\Enums;
 
 /**
- * Define los diferentes tipos de facturas rectificativa aplicables
+ * Tipos de factura rectificativa según Verifactu.
  */
 enum TipoRectificativa: string
 {
-    /**
-     * Por sustitución
-     *
-     * La factura rectificativa reemplaza por completo a la factura original.
-     * La factura original queda anulada y es sustituida íntegramente.
-     */
-    const SUBSTITUTIVA = 'S';
-
-    /**
-     * Por diferencias
-     *
-     * La factura rectificativa ajusta únicamente importes o datos concretos
-     * de la factura original. La factura original sigue siendo válida,
-     * y la rectificativa actúa como complemento.
-     */
-    const DIFERENCIAS = 'I';
+    case SUSTITUTIVA = 'S';  // Reemplaza íntegramente a la factura original
+    case DIFERENCIAS = 'I';  // Ajusta importes o datos de la factura original sin anularla
 }

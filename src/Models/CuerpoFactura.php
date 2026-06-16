@@ -74,7 +74,7 @@ class CuerpoFactura
         }
         if (! $this->tipoFactura) {
             $errors[] = 'Cuerpo tipoFactura: El tipo de factura es obligatorio';
-        } elseif (in_array($this->tipoFactura, [TipoFactura::R1, TipoFactura::R2, TipoFactura::R3, TipoFactura::R4, TipoFactura::R5])) {
+        } elseif (TipoFactura::tryFrom($this->tipoFactura)?->isRectificativa()) {
             if (! $this->tipoRectificativa) {
                 $errors[] = 'Cuerpo tipoRectificativa: El tipo de rectificativa es obligatorio para facturas rectificativas';
             }
@@ -100,6 +100,12 @@ class CuerpoFactura
         }
         if (! isset($this->importeTotal)) {
             $errors[] = 'Cuerpo importeTotal: El importe total es obligatorio';
+        }
+
+        // Validar que importeTotal = sum(bases + cuotas) del desglose
+        $totalesErrors = $this->validateTotales();
+        if (\count($totalesErrors) > 0) {
+            $errors = array_merge($errors, $totalesErrors);
         }
         if (! $this->sistemaInformatico) {
             $errors[] = 'Cuerpo sistemaInformatico: El sistema informático es obligatorio';
@@ -131,6 +137,8 @@ class CuerpoFactura
      */
     public function toArray(): array
     {
+        $ahora = new \DateTime;
+
         $encadenamiento = [];
         if ($this->registroAnterior) {
             $encadenamiento = [
@@ -155,9 +163,9 @@ class CuerpoFactura
                 'DetalleDesglose' => array_map(fn ($dg) => $dg->toArray(), $this->desglose),
             ],
             'TipoHuella' => $this->tipoHuella,
-            'Huella' => $this->calculateHuella(),
+            'Huella' => $this->calculateHuella($ahora),
             'Encadenamiento' => $encadenamiento,
-            'FechaHoraHusoGenRegistro' => (new \DateTime)->format('c'),
+            'FechaHoraHusoGenRegistro' => $ahora->format('c'),
         ];
         if ($this->facturaIsRectificativa()) {
             $data['TipoRectificativa'] = $this->tipoRectificativa;
@@ -188,8 +196,10 @@ class CuerpoFactura
      *
      * @return string Huella en hexadecimal mayúsculas
      */
-    public function calculateHuella(): string
+    public function calculateHuella(?\DateTime $fechaHora = null): string
     {
+        $fechaHora = $fechaHora ?? new \DateTime;
+
         $payload = 'IDEmisorFactura='.$this->idFactura->idEmisorFactura
             .'&NumSerieFactura='.$this->idFactura->numSerieFactura
             .'&FechaExpedicionFactura='.$this->idFactura->fechaExpedicionFactura->format('d-m-Y')
@@ -197,13 +207,62 @@ class CuerpoFactura
             .'&CuotaTotal='.$this->cuotaTotal
             .'&ImporteTotal='.$this->importeTotal
             .'&Huella='.($this->registroAnterior ? $this->registroAnterior->huella : '')
-            .'&FechaHoraHusoGenRegistro='.(new \DateTime)->format('c');
+            .'&FechaHoraHusoGenRegistro='.$fechaHora->format('c');
 
         return strtoupper(hash('sha256', $payload));
     }
 
+    /**
+     * Valida que importeTotal y cuotaTotal coincidan con la suma del desglose.
+     */
+    private function validateTotales(): array
+    {
+        $errors = [];
+
+        if (empty($this->desglose) || ! isset($this->importeTotal) || ! isset($this->cuotaTotal)) {
+            return $errors;
+        }
+
+        $sumaBases = 0.0;
+        $sumaCuotas = 0.0;
+
+        foreach ($this->desglose as $index => $linea) {
+            $sumaBases += (float) $linea->baseImponibleOimporteNoSujeto;
+            if ($linea->cuotaRepercutida !== null) {
+                $sumaCuotas += (float) $linea->cuotaRepercutida;
+            }
+        }
+
+        $sumaTotal = $sumaBases + $sumaCuotas;
+        $importeTotal = (float) $this->importeTotal;
+        $cuotaTotal = (float) $this->cuotaTotal;
+
+        // Tolerancia de 1 céntimo por línea
+        $tolerancia = 0.01 * max(1, \count($this->desglose));
+
+        if (abs($importeTotal - $sumaTotal) > $tolerancia) {
+            $errors[] = sprintf(
+                'Cuerpo importeTotal: El importe total (%.2f) no coincide con la suma de bases + cuotas del desglose (%.2f). Diferencia: %.2f',
+                $importeTotal,
+                $sumaTotal,
+                $importeTotal - $sumaTotal
+            );
+        }
+
+        if (abs($cuotaTotal - $sumaCuotas) > $tolerancia) {
+            $errors[] = sprintf(
+                'Cuerpo cuotaTotal: La cuota total (%.2f) no coincide con la suma de cuotas del desglose (%.2f). Diferencia: %.2f',
+                $cuotaTotal,
+                $sumaCuotas,
+                $cuotaTotal - $sumaCuotas
+            );
+        }
+
+        return $errors;
+    }
+
     private function facturaIsRectificativa(): bool
     {
-        return in_array($this->tipoFactura, [TipoFactura::R1, TipoFactura::R2, TipoFactura::R3, TipoFactura::R4, TipoFactura::R5]);
+        return TipoFactura::tryFrom($this->tipoFactura)?->isRectificativa() ?? false;
     }
 }
