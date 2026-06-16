@@ -1,6 +1,6 @@
 {
   "name": "aecil/verifactu",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Cliente PHP para el servicio Verifactu (TIKE) de la AEAT.",
   "type": "library",
   "license": "MIT",
