@@ -6,6 +6,7 @@ use const WSDL_CACHE_NONE;
 
 use Aecil\Verifactu\Enums\VerifactuRespuestas;
 use Aecil\Verifactu\Models\CancelarFactura;
+use Aecil\Verifactu\Models\ConsultaFactura;
 use Aecil\Verifactu\Models\IdFactura;
 use Aecil\Verifactu\Models\Invoice;
 use Illuminate\Support\HtmlString;
@@ -184,6 +185,49 @@ class SoapClientVerifactu
             'estado' => $estado,
             'data' => $result,
         ];
+    }
+
+    /**
+     * Consulta facturas ya registradas en Verifactu para un período.
+     * Útil para obtener la última factura y encadenar la siguiente.
+     */
+    public function consultInvoice(ConsultaFactura $consulta): array
+    {
+        $this->client->__setLocation($this->endpoint);
+
+        try {
+            $result = $this->client->__soapCall(
+                'ConsultaFactuSistemaFacturacion',
+                [$consulta->toArray()]
+            );
+
+            $registros = $result->RegistroRespuestaConsultaFactuSistemaFacturacion ?? [];
+
+            // SOAP_SINGLE_ELEMENT_ARRAYS: asegurar que sea un array
+            if (! is_array($registros)) {
+                $registros = $registros ? [$registros] : [];
+            }
+
+            return [
+                'success' => true,
+                'message' => \count($registros).' registros encontrados',
+                'registros' => $registros,
+                'clavePaginacion' => $result->ClavePaginacion ?? null,
+                'data' => $result,
+            ];
+        } catch (\SoapFault $fault) {
+            return [
+                'success' => false,
+                'message' => $fault->getMessage(),
+                'data' => $fault,
+            ];
+        } catch (\Throwable $error) {
+            return [
+                'success' => false,
+                'message' => $error->getMessage() ?? 'Error desconocido',
+                'data' => $error,
+            ];
+        }
     }
 
     public function getLastRequest(): ?string
