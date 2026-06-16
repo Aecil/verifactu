@@ -7,6 +7,8 @@ namespace Aecil\Verifactu\Models;
  */
 class ConsultaFactura
 {
+    public string $idVersion = '1.0';
+
     public CabeceraFactura $cabecera;
 
     /** Ejercicio (YYYY) */
@@ -60,7 +62,10 @@ class ConsultaFactura
         }
 
         return [
-            'Cabecera' => $this->cabecera->toArray(),
+            'Cabecera' => [
+                'IDVersion' => $this->idVersion,
+                'ObligadoEmision' => $this->cabecera->emisor->toArray(),
+            ],
             'FiltroConsulta' => $filtro,
         ];
     }
