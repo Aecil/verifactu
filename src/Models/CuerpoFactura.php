@@ -183,8 +183,8 @@ class CuerpoFactura
         }
         if ($this->baseRectificada !== null && $this->cuotaRectificada !== null) {
             $data['ImporteRectificacion'] = [
-                'baseRectificada' => $this->baseRectificada,
-                'cuotaRectificada' => $this->cuotaRectificada,
+                'BaseRectificada' => $this->baseRectificada,
+                'CuotaRectificada' => $this->cuotaRectificada,
             ];
         }
 
