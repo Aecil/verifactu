@@ -70,6 +70,55 @@ class ApiErrorException extends VerifactuException
     }
 
     /**
+     * Devuelve un mensaje orientado al usuario final, traducido desde
+     * el mensaje técnico de la AEAT cuando es posible.
+     */
+    public function userMessage(): string
+    {
+        if ($this->codigoError && isset(self::USER_MESSAGES[$this->codigoError])) {
+            return self::USER_MESSAGES[$this->codigoError];
+        }
+
+        // Limpiar el prefijo técnico tipo "Cabecera emisor: " o "Cuerpo: "
+        $cleaned = preg_replace('/^(Cabecera|Cuerpo|Emisor|Destinatario|IdFactura)\S*\s*:\s*/i', '', $this->descripcionError);
+
+        return $cleaned ?: 'Error en el envío a la AEAT. Revise los datos e inténtelo de nuevo.';
+    }
+
+    private const USER_MESSAGES = [
+        // Fechas
+        '1111' => 'La fecha de expedición de la factura no puede ser anterior a la fecha de alta en el sistema.',
+        '1112' => 'La fecha de expedición de la factura no puede ser superior a la fecha actual.',
+        '1113' => 'La fecha de operación no puede ser posterior a la fecha de expedición.',
+        '1114' => 'La fecha de operación no puede ser anterior en más de un año a la fecha de expedición.',
+
+        // NIF
+        '1100' => 'El NIF del emisor no es válido o no está dado de alta en la AEAT.',
+        '1101' => 'El NIF del destinatario no es válido o no está dado de alta en la AEAT.',
+        '1102' => 'El NIF del representante no es válido.',
+        '1103' => 'El NIF del declarado no es válido.',
+
+        // Identificador de factura
+        '1200' => 'Ya existe una factura con ese número de serie y fecha.',
+        '1201' => 'El número de serie de la factura no es válido.',
+        '1202' => 'La factura rectificativa debe hacer referencia a una factura anterior existente.',
+
+        // Totales e importes
+        '1300' => 'El desglose de impuestos no coincide con los importes declarados.',
+        '1301' => 'La cuota total no coincide con la suma de las cuotas de las líneas.',
+        '1302' => 'La base imponible no puede ser negativa.',
+        '1303' => 'El tipo impositivo aplicado no es válido.',
+
+        // Encadenamiento
+        '1400' => 'El encadenamiento de facturas no es correcto. Revise la huella del registro anterior.',
+        '1401' => 'No se encuentra el registro anterior para realizar el encadenamiento.',
+
+        // Sistema informático
+        '1500' => 'Los datos del sistema informático emisor no son válidos.',
+        '1501' => 'El NIF del fabricante del software no está dado de alta en la AEAT.',
+    ];
+
+    /**
      * Resuelve la clase de excepción más concreta según el mensaje de error.
      */
     private static function resolveExceptionClass(string $descripcion, string $codigo): string
