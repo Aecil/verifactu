@@ -5,6 +5,10 @@ namespace Aecil\Verifactu;
 use const WSDL_CACHE_NONE;
 
 use Aecil\Verifactu\Enums\VerifactuRespuestas;
+use Aecil\Verifactu\Exceptions\ApiErrorException;
+use Aecil\Verifactu\Exceptions\SoapException;
+use Aecil\Verifactu\Exceptions\ValidationException;
+use Aecil\Verifactu\Exceptions\VerifactuException;
 use Aecil\Verifactu\Models\CancelarFactura;
 use Aecil\Verifactu\Models\ConsultaFactura;
 use Aecil\Verifactu\Models\IdFactura;
@@ -71,6 +75,11 @@ class SoapClientVerifactu
         $this->client = new SoapClient($this->wsdlPath, $options);
     }
 
+    /**
+     * @throws ValidationException Si los datos de la factura no superan la validación local.
+     * @throws SoapException Si ocurre un error de transporte SOAP.
+     * @throws ApiErrorException Si la AEAT rechaza la factura.
+     */
     public function send(Invoice $invoice): array
     {
         $this->client->__setLocation($this->endpoint);
@@ -78,7 +87,7 @@ class SoapClientVerifactu
         try {
             $errors = $invoice->validate();
             if (\count($errors) > 0) {
-                throw new \InvalidArgumentException(implode("\n", $errors));
+                throw new ValidationException($errors, 'Error de validación en la factura');
             }
 
             $result = $this->client->__soapCall(
@@ -87,23 +96,22 @@ class SoapClientVerifactu
             );
 
             return $this->parseResponse($result);
+        } catch (VerifactuException $e) {
+            throw $e;
         } catch (\SoapFault $fault) {
-            return [
-                'success' => false,
-                'message' => $fault->getMessage(),
-                'data' => $fault,
-            ];
+            throw SoapException::fromFault($fault);
         } catch (\Throwable $error) {
-            return [
-                'success' => false,
-                'message' => $error->getMessage() ?? 'Error desconocido',
-                'data' => $error,
-            ];
+            throw new VerifactuException(
+                message: $error->getMessage() ?: 'Error desconocido',
+                previous: $error,
+            );
         }
     }
 
     /**
-     * Cancela (anula) una factura previamente enviada a Verifactu.
+     * @throws ValidationException Si los datos de cancelación no superan la validación local.
+     * @throws SoapException Si ocurre un error de transporte SOAP.
+     * @throws ApiErrorException Si la AEAT rechaza la cancelación.
      */
     public function cancelInvoice(CancelarFactura $cancelacion): array
     {
@@ -112,7 +120,7 @@ class SoapClientVerifactu
         try {
             $errors = $cancelacion->validate();
             if (\count($errors) > 0) {
-                throw new \InvalidArgumentException(implode("\n", $errors));
+                throw new ValidationException($errors, 'Error de validación en la cancelación');
             }
 
             $result = $this->client->__soapCall(
@@ -121,18 +129,15 @@ class SoapClientVerifactu
             );
 
             return $this->parseResponse($result);
+        } catch (VerifactuException $e) {
+            throw $e;
         } catch (\SoapFault $fault) {
-            return [
-                'success' => false,
-                'message' => $fault->getMessage(),
-                'data' => $fault,
-            ];
+            throw SoapException::fromFault($fault);
         } catch (\Throwable $error) {
-            return [
-                'success' => false,
-                'message' => $error->getMessage() ?? 'Error desconocido',
-                'data' => $error,
-            ];
+            throw new VerifactuException(
+                message: $error->getMessage() ?: 'Error desconocido',
+                previous: $error,
+            );
         }
     }
 
@@ -159,13 +164,17 @@ class SoapClientVerifactu
     }
 
     /**
-     * Parsea la respuesta SOAP de Verifactu y devuelve un array normalizado.
+     * @throws ApiErrorException Si la AEAT devuelve un estado de error.
      */
     private function parseResponse(object $result): array
     {
         $estadoRaw = strtoupper(str_replace(' ', '', $result->EstadoEnvio ?? ''));
 
         $estado = VerifactuRespuestas::tryFrom($estadoRaw) ?? VerifactuRespuestas::INCORRECTO;
+
+        if (! $estado->isAccepted()) {
+            throw ApiErrorException::fromResponse($result);
+        }
 
         $message = match ($estado) {
             VerifactuRespuestas::CORRECTO => 'Factura enviada correctamente',
@@ -180,7 +189,7 @@ class SoapClientVerifactu
         }
 
         return [
-            'success' => $estado->isAccepted(),
+            'success' => true,
             'message' => $message,
             'estado' => $estado,
             'data' => $result,
@@ -188,8 +197,8 @@ class SoapClientVerifactu
     }
 
     /**
-     * Consulta facturas ya registradas en Verifactu para un período.
-     * Útil para obtener la última factura y encadenar la siguiente.
+     * @throws SoapException Si ocurre un error de transporte SOAP.
+     * @throws VerifactuException Si ocurre un error inesperado.
      */
     public function consultInvoice(ConsultaFactura $consulta): array
     {
@@ -203,7 +212,6 @@ class SoapClientVerifactu
 
             $registros = $result->RegistroRespuestaConsultaFactuSistemaFacturacion ?? [];
 
-            // SOAP_SINGLE_ELEMENT_ARRAYS: asegurar que sea un array
             if (! is_array($registros)) {
                 $registros = $registros ? [$registros] : [];
             }
@@ -215,18 +223,15 @@ class SoapClientVerifactu
                 'clavePaginacion' => $result->ClavePaginacion ?? null,
                 'data' => $result,
             ];
+        } catch (VerifactuException $e) {
+            throw $e;
         } catch (\SoapFault $fault) {
-            return [
-                'success' => false,
-                'message' => $fault->getMessage(),
-                'data' => $fault,
-            ];
+            throw SoapException::fromFault($fault);
         } catch (\Throwable $error) {
-            return [
-                'success' => false,
-                'message' => $error->getMessage() ?? 'Error desconocido',
-                'data' => $error,
-            ];
+            throw new VerifactuException(
+                message: $error->getMessage() ?: 'Error desconocido',
+                previous: $error,
+            );
         }
     }
 
