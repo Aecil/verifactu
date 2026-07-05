@@ -277,4 +277,106 @@ class VerifactuClientTest extends TestCase
         $this->assertSame('77', $arr['IdSistemaInformatico']);
         $this->assertSame('S', $arr['TipoUsoPosibleSoloVerifactu']);
     }
+
+    // ─── Recargo de equivalencia y líneas exentas/no sujetas ────────────
+
+    public function test_linea_con_recargo_serializa_tipo_recargo_equivalencia(): void
+    {
+        // Nombre EXACTO del XSD (SuministroInformacion.xsd): TipoRecargoEquivalencia.
+        // Con TipoCargoEquivalencia el SoapClient en modo WSDL lo descartaba en silencio.
+        $linea = new LineaFactura('100.00', '21.00', '21.00', claveRegimen: '18');
+        $linea->tipoRecargoEquivalencia = '5.20';
+        $linea->cuotaRecargoEquivalencia = '5.20';
+
+        $arr = $linea->toArray();
+
+        $this->assertSame('5.20', $arr['TipoRecargoEquivalencia']);
+        $this->assertSame('5.20', $arr['CuotaRecargoEquivalencia']);
+        $this->assertArrayNotHasKey('TipoCargoEquivalencia', $arr);
+    }
+
+    public function test_linea_exenta_valida_y_serializa_sin_tipo_ni_cuota(): void
+    {
+        $linea = new LineaFactura('100.00', '0.00', calificacionOperacion: TipoOperacion::E1->value);
+        $linea->tipoImpositivo = null;
+        $linea->cuotaRepercutida = null;
+
+        $this->assertSame([], $linea->validate());
+
+        $arr = $linea->toArray();
+        $this->assertSame('E1', $arr['OperacionExenta']);
+        $this->assertArrayNotHasKey('TipoImpositivo', $arr);
+        $this->assertArrayNotHasKey('CuotaRepercutida', $arr);
+        $this->assertArrayNotHasKey('CalificacionOperacion', $arr);
+    }
+
+    public function test_linea_no_sujeta_valida_y_serializa_sin_tipo_ni_cuota(): void
+    {
+        $linea = new LineaFactura('100.00', '0.00', calificacionOperacion: TipoOperacion::N1->value);
+        $linea->tipoImpositivo = null;
+        $linea->cuotaRepercutida = null;
+
+        $this->assertSame([], $linea->validate());
+
+        // Las no sujetas van con CalificacionOperacion pero SIN tipo ni cuota
+        // (minOccurs=0 en el XSD)
+        $arr = $linea->toArray();
+        $this->assertSame('N1', $arr['CalificacionOperacion']);
+        $this->assertArrayNotHasKey('TipoImpositivo', $arr);
+        $this->assertArrayNotHasKey('CuotaRepercutida', $arr);
+        $this->assertArrayNotHasKey('OperacionExenta', $arr);
+    }
+
+    public function test_linea_sujeta_s1_sigue_exigiendo_tipo_y_cuota(): void
+    {
+        $linea = new LineaFactura('100.00', '21.00', '21.00');
+        $linea->tipoImpositivo = null;
+        $linea->cuotaRepercutida = null;
+
+        $errors = $linea->validate();
+
+        $this->assertNotEmpty(array_filter($errors, fn ($e) => str_contains($e, 'tipo impositivo')));
+        $this->assertNotEmpty(array_filter($errors, fn ($e) => str_contains($e, 'cuota repercutida')));
+    }
+
+    public function test_validate_totales_incluye_recargo_de_equivalencia(): void
+    {
+        // La AEAT suma el recargo en CuotaTotal e ImporteTotal
+        $linea = new LineaFactura('100.00', '21.00', '21.00', claveRegimen: '18');
+        $linea->tipoRecargoEquivalencia = '5.20';
+        $linea->cuotaRecargoEquivalencia = '5.20';
+
+        $cuerpo = $this->makeCuerpoConDesglose([$linea], '126.20', '26.20');
+        $errors = $cuerpo->validate();
+
+        $totalesErrors = array_filter($errors, fn ($e) => str_contains($e, 'importeTotal') || str_contains($e, 'cuotaTotal'));
+        $this->assertCount(0, $totalesErrors);
+    }
+
+    public function test_importe_rectificacion_incluye_cuota_recargo_rectificado(): void
+    {
+        $cuerpo = $this->makeCuerpoConDesglose([new LineaFactura('100.00', '21.00', '21.00')], '121.00', '21.00');
+        $cuerpo->tipoFactura = TipoFactura::R1->value;
+        $cuerpo->tipoRectificativa = 'S';
+        $cuerpo->baseRectificada = '100.00';
+        $cuerpo->cuotaRectificada = '21.00';
+        $cuerpo->cuotaRecargoRectificado = '5.20';
+
+        $arr = $cuerpo->toArray();
+
+        $this->assertSame('5.20', $arr['ImporteRectificacion']['CuotaRecargoRectificado']);
+    }
+
+    public function test_importe_rectificacion_sin_recargo_no_incluye_el_campo(): void
+    {
+        $cuerpo = $this->makeCuerpoConDesglose([new LineaFactura('100.00', '21.00', '21.00')], '121.00', '21.00');
+        $cuerpo->tipoFactura = TipoFactura::R1->value;
+        $cuerpo->tipoRectificativa = 'S';
+        $cuerpo->baseRectificada = '100.00';
+        $cuerpo->cuotaRectificada = '21.00';
+
+        $arr = $cuerpo->toArray();
+
+        $this->assertArrayNotHasKey('CuotaRecargoRectificado', $arr['ImporteRectificacion']);
+    }
 }

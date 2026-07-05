@@ -28,7 +28,7 @@ class LineaFactura
 
     public ?string $cuotaRepercutida = null;
 
-    public ?string $tipoCargoEquivalencia = null;
+    public ?string $tipoRecargoEquivalencia = null;
 
     public ?string $cuotaRecargoEquivalencia = null;
 
@@ -63,11 +63,15 @@ class LineaFactura
         if (! $this->baseImponibleOimporteNoSujeto) {
             $errors[] = $prefix.'La base imponible o importe no sujeto es obligatorio';
         }
-        if (! $this->tipoImpositivo) {
-            $errors[] = $prefix.'El tipo impositivo es obligatorio';
-        }
-        if (! $this->cuotaRepercutida) {
-            $errors[] = $prefix.'La cuota repercutida es obligatoria';
+        // Las líneas EXENTAS (OperacionExenta E1-E6) y las NO SUJETAS (N1/N2)
+        // deben ir SIN tipo ni cuota; solo son obligatorios en sujetas S1.
+        if ($this->calificacionOperacion === TipoOperacion::S1->value) {
+            if ($this->tipoImpositivo === null || $this->tipoImpositivo === '') {
+                $errors[] = $prefix.'El tipo impositivo es obligatorio';
+            }
+            if ($this->cuotaRepercutida === null || $this->cuotaRepercutida === '') {
+                $errors[] = $prefix.'La cuota repercutida es obligatoria';
+            }
         }
         $operationTypeError = $this->validateOperationType();
         if ($operationTypeError) {
@@ -86,7 +90,9 @@ class LineaFactura
         if (! isset($this->calificacionOperacion)) {
             return null;
         }
-        if (! $this->lineaExentaIva()) {
+        // Tipo y cuota solo son obligatorios en operaciones sujetas S1; las
+        // exentas (E1-E6) y las no sujetas (N1/N2) deben ir sin ellos.
+        if ($this->calificacionOperacion === TipoOperacion::S1->value) {
             if ($this->tipoImpositivo === null) {
                 return 'El tipo impositivo es obligatorio para operaciones sujetas';
             }
@@ -143,13 +149,21 @@ class LineaFactura
         if ($this->lineaExentaIva()) {
             $data['OperacionExenta'] = $this->calificacionOperacion;
         } else {
-            $data['TipoImpositivo'] = $this->tipoImpositivo;
-            $data['CuotaRepercutida'] = $this->cuotaRepercutida;
+            // Las no sujetas (N1/N2) van SIN tipo ni cuota (minOccurs=0 en el XSD)
+            if ($this->tipoImpositivo !== null) {
+                $data['TipoImpositivo'] = $this->tipoImpositivo;
+            }
+            if ($this->cuotaRepercutida !== null) {
+                $data['CuotaRepercutida'] = $this->cuotaRepercutida;
+            }
             $data['CalificacionOperacion'] = $this->calificacionOperacion;
         }
 
-        if ($this->tipoCargoEquivalencia !== null) {
-            $data['TipoCargoEquivalencia'] = $this->tipoCargoEquivalencia;
+        // Nombre EXACTO del XSD (SuministroInformacion.xsd): TipoRecargoEquivalencia.
+        // Con el nombre erróneo anterior (TipoCargoEquivalencia) el SoapClient en
+        // modo WSDL lo descartaba en silencio y la AEAT rechazaría el recargo.
+        if ($this->tipoRecargoEquivalencia !== null) {
+            $data['TipoRecargoEquivalencia'] = $this->tipoRecargoEquivalencia;
         }
         if ($this->cuotaRecargoEquivalencia !== null) {
             $data['CuotaRecargoEquivalencia'] = $this->cuotaRecargoEquivalencia;
