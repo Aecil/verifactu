@@ -49,6 +49,8 @@ class CuerpoFactura
 
     public ?string $cuotaRectificada = null; // Solo para facturas rectificativas
 
+    public ?string $cuotaRecargoRectificado = null; // Recargo de equivalencia rectificado (XSD: CuotaRecargoRectificado)
+
     /**
      * Valida todos los datos del cuerpo de la factura
      *
@@ -186,6 +188,9 @@ class CuerpoFactura
                 'BaseRectificada' => $this->baseRectificada,
                 'CuotaRectificada' => $this->cuotaRectificada,
             ];
+            if ($this->cuotaRecargoRectificado !== null) {
+                $data['ImporteRectificacion']['CuotaRecargoRectificado'] = $this->cuotaRecargoRectificado;
+            }
         }
 
         return $data;
@@ -230,6 +235,10 @@ class CuerpoFactura
             $sumaBases += (float) $linea->baseImponibleOimporteNoSujeto;
             if ($linea->cuotaRepercutida !== null) {
                 $sumaCuotas += (float) $linea->cuotaRepercutida;
+            }
+            // La AEAT incluye el recargo de equivalencia en CuotaTotal e ImporteTotal
+            if ($linea->cuotaRecargoEquivalencia !== null) {
+                $sumaCuotas += (float) $linea->cuotaRecargoEquivalencia;
             }
         }
 
