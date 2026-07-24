@@ -13,6 +13,7 @@ use Aecil\Verifactu\Models\CancelarFactura;
 use Aecil\Verifactu\Models\ConsultaFactura;
 use Aecil\Verifactu\Models\IdFactura;
 use Aecil\Verifactu\Models\Invoice;
+use Aecil\Verifactu\Models\RegistroAnterior;
 use Illuminate\Support\HtmlString;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 use SoapClient;
@@ -233,6 +234,49 @@ class SoapClientVerifactu
                 previous: $error,
             );
         }
+    }
+
+    /**
+     * Consulta la AEAT y extrae los datos de la serie para calcular el siguiente
+     * código incremental y el registro anterior para encadenamiento.
+     *
+     * Filtra los registros por el prefijo de serie (ej. "F261" para facturas,
+     * "R261" para rectificativas) para que cada serie tenga su propio correlativo
+     * y su propia cadena de huellas, sin contaminación cruzada.
+     *
+     * @param  ConsultaFactura  $consulta  Consulta ya configurada con emisor y período
+     * @param  string  $seriesPrefix  Prefijo de la serie (ej. "F261", "R261")
+     * @return array{max_incremental: int, registro_anterior: ?RegistroAnterior}
+     */
+    public function getNextInvoiceData(ConsultaFactura $consulta, string $seriesPrefix): array
+    {
+        $result = $this->consultInvoice($consulta);
+
+        $filtered = collect($result['registros'])
+            ->filter(fn ($r) => str_starts_with(
+                (string) ($r->IDFactura->NumSerieFactura ?? ''),
+                $seriesPrefix
+            ));
+
+        // Extrae el máximo número incremental real del NumSerieFactura,
+        // no un conteo de registros (que asumiría numeración secuencial sin huecos).
+        $maxIncremental = $filtered
+            ->map(fn ($r) => (int) substr(
+                (string) $r->IDFactura->NumSerieFactura,
+                strlen($seriesPrefix)
+            ))
+            ->max() ?: 0;
+
+        // El encadenamiento debe hacerse contra el último registro de la MISMA serie.
+        $ultimo = $filtered->last();
+        $registroAnterior = $ultimo
+            ? RegistroAnterior::fromConsultaRegistro($ultimo)
+            : null;
+
+        return [
+            'max_incremental' => $maxIncremental,
+            'registro_anterior' => $registroAnterior,
+        ];
     }
 
     public function getLastRequest(): ?string
